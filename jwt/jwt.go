@@ -8,6 +8,7 @@ import (
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -25,40 +26,54 @@ type JWT struct {
 	Signature []byte
 }
 
-func (j JWT) HasValidSignature(key any) bool {
-	// todo: improve key type safety
+type PubKey interface {
+	Equal(x crypto.PublicKey) bool
+}
 
+type HS256Key [sha256.Size]byte
+
+func (h HS256Key) Equal(x crypto.PublicKey) bool {
+	other, ok := x.(HS256Key)
+	if !ok {
+		return false
+	}
+	return subtle.ConstantTimeCompare(h[:], other[:]) == 1
+}
+
+func (j JWT) HasValidSignature(key PubKey) (bool, error) {
 	switch j.Header.Alg {
 	case "HS256":
-		raw, ok := key.([]byte)
+		raw, ok := key.(HS256Key)
 		if !ok {
-			return false
+			return false, errors.New("key alg mismatch")
 		}
-		mac := hmac.New(sha256.New, raw)
-		return hmac.Equal(mac.Sum(j.Message), j.Signature)
+		mac := hmac.New(sha256.New, raw[:])
+		return hmac.Equal(mac.Sum(j.Message), j.Signature), nil
 	case "RS256":
 		raw, ok := key.(*rsa.PublicKey)
 		if !ok {
-			return false
+			return false, errors.New("key alg mismatch")
 		}
-		return rsa.VerifyPKCS1v15(raw, crypto.SHA256, sha256.New().Sum(j.Message), j.Signature) == nil
+		h := sha256.Sum256(j.Message)
+		return rsa.VerifyPKCS1v15(raw, crypto.SHA256, h[:], j.Signature) == nil, nil
 	case "ES256":
-		raw, ok := key.(ecdsa.PublicKey)
+		raw, ok := key.(*ecdsa.PublicKey)
 		if !ok {
-			return false
+			return false, errors.New("key alg mismatch")
 		}
 
 		if len(j.Signature) != 64 {
-			return false
+			return false, nil
 		}
 		r := new(big.Int).SetBytes(j.Signature[:32])
 		s := new(big.Int).SetBytes(j.Signature[32:])
-
-		return ecdsa.Verify(&raw, sha256.New().Sum(j.Message), r, s)
-
+		h := sha256.Sum256(j.Message)
+		return ecdsa.Verify(raw, h[:], r, s), nil
+	case "", "none":
+		return false, nil
 	}
 
-	return false
+	return false, errors.New("not implemented")
 }
 
 func (j *JWT) Decode(b []byte) error {
