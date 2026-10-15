@@ -1,4 +1,4 @@
-// Package env todo.
+// Package env includes utility functions for accessing environment variables.
 package env
 
 import (
