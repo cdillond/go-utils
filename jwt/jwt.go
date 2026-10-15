@@ -3,15 +3,17 @@ package jwt
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/hmac"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
-	"hash"
 	"io"
+	"math/big"
 )
 
 type JWT struct {
@@ -23,21 +25,40 @@ type JWT struct {
 	Signature []byte
 }
 
-func (j JWT) HasValidSignature(key []byte) bool {
-	if j.Header.Alg == "" {
-		return len(j.Signature) == 0
-	}
-
-	var mac hash.Hash
+func (j JWT) HasValidSignature(key any) bool {
+	// todo: improve key type safety
 
 	switch j.Header.Alg {
 	case "HS256":
-		mac = hmac.New(sha256.New, key)
-	default:
-		return false
+		raw, ok := key.([]byte)
+		if !ok {
+			return false
+		}
+		mac := hmac.New(sha256.New, raw)
+		return hmac.Equal(mac.Sum(j.Message), j.Signature)
+	case "RS256":
+		raw, ok := key.(*rsa.PublicKey)
+		if !ok {
+			return false
+		}
+		return rsa.VerifyPKCS1v15(raw, crypto.SHA256, sha256.New().Sum(j.Message), j.Signature) == nil
+	case "ES256":
+		raw, ok := key.(ecdsa.PublicKey)
+		if !ok {
+			return false
+		}
+
+		if len(j.Signature) != 64 {
+			return false
+		}
+		r := new(big.Int).SetBytes(j.Signature[:32])
+		s := new(big.Int).SetBytes(j.Signature[32:])
+
+		return ecdsa.Verify(&raw, sha256.New().Sum(j.Message), r, s)
+
 	}
 
-	return hmac.Equal(mac.Sum(j.Message), j.Signature)
+	return false
 }
 
 func (j *JWT) Decode(b []byte) error {
@@ -53,7 +74,6 @@ func (j *JWT) Decode(b []byte) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println(string(rawHeader))
 		if err = j.Header.UnmarshalJSONFrom(jsontext.NewDecoder(bytes.NewBuffer(rawHeader))); err != nil {
 			return err
 		}
@@ -65,7 +85,6 @@ func (j *JWT) Decode(b []byte) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println(string(rawClaims))
 		if err = j.Payload.UnmarshalJSONFrom(jsontext.NewDecoder(bytes.NewBuffer(rawClaims))); err != nil {
 			return err
 		}
