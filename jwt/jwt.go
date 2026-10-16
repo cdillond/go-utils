@@ -40,40 +40,61 @@ func (h HS256Key) Equal(x crypto.PublicKey) bool {
 	return subtle.ConstantTimeCompare(h[:], other[:]) == 1
 }
 
-func (j JWT) HasValidSignature(key PubKey) (bool, error) {
+type SigValidationError string
+
+func (s SigValidationError) Error() string {
+	return "signature validation error: " + string(s)
+}
+
+const (
+	ErrIncorrectAlg  SigValidationError = "algorithm does not match the provided key type"
+	ErrBadSigLen     SigValidationError = "signature length is invalid"
+	ErrUnsigned      SigValidationError = "JWT is not signed"
+	ErrUnimplemented SigValidationError = "algorithm not implemented"
+	ErrBadSig        SigValidationError = "signature failed validation"
+)
+
+func (j JWT) ValidateSignature(key PubKey) error {
 	switch j.Header.Alg {
 	case "HS256":
 		raw, ok := key.(HS256Key)
 		if !ok {
-			return false, errors.New("key alg mismatch")
+			return ErrIncorrectAlg
 		}
 		mac := hmac.New(sha256.New, raw[:])
-		return hmac.Equal(mac.Sum(j.Message), j.Signature), nil
+		if !hmac.Equal(mac.Sum(j.Message), j.Signature) {
+			return ErrBadSig
+		}
 	case "RS256":
 		raw, ok := key.(*rsa.PublicKey)
 		if !ok {
-			return false, errors.New("key alg mismatch")
+			return ErrIncorrectAlg
 		}
 		h := sha256.Sum256(j.Message)
-		return rsa.VerifyPKCS1v15(raw, crypto.SHA256, h[:], j.Signature) == nil, nil
+		if err := rsa.VerifyPKCS1v15(raw, crypto.SHA256, h[:], j.Signature); err != nil {
+			return errors.Join(ErrBadSig, err)
+		}
 	case "ES256":
 		raw, ok := key.(*ecdsa.PublicKey)
 		if !ok {
-			return false, errors.New("key alg mismatch")
+			return ErrIncorrectAlg
 		}
-
 		if len(j.Signature) != 64 {
-			return false, nil
+			return ErrBadSigLen
 		}
 		r := new(big.Int).SetBytes(j.Signature[:32])
 		s := new(big.Int).SetBytes(j.Signature[32:])
 		h := sha256.Sum256(j.Message)
-		return ecdsa.Verify(raw, h[:], r, s), nil
+		if !ecdsa.Verify(raw, h[:], r, s) {
+			return ErrBadSig
+		}
 	case "", "none":
-		return false, nil
+		return ErrUnsigned
+	default:
+		return ErrUnimplemented
 	}
 
-	return false, errors.New("not implemented")
+	return nil
 }
 
 func (j *JWT) Decode(b []byte) error {
