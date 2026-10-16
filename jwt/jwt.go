@@ -165,6 +165,14 @@ const (
 // is found, it should return nil.
 type LookupFn func(JWT) PubKey
 
+func (j *JWT) UnmarshalCompact(b []byte, lookup LookupFn, allowUnsigned bool) error {
+	c, err := DecodeCompact(b)
+	if err != nil {
+		return err
+	}
+	return j.FromCompact(c, lookup, allowUnsigned)
+}
+
 // FromCompact decodes a CompactSerialization to a JWT and validates the message/signature pair.
 func (j *JWT) FromCompact(c CompactSerialization, lookup LookupFn, allowUnsigned bool) error {
 	var (
@@ -179,7 +187,9 @@ func (j *JWT) FromCompact(c CompactSerialization, lookup LookupFn, allowUnsigned
 		return errors.Join(ErrInvalidPayload, err)
 	}
 
-	key = lookup(*j)
+	if lookup != nil {
+		key = lookup(*j)
+	}
 
 	return ValidateSignature(key, Alg(j.Header.Alg), c.RawMessage, c.Signature, allowUnsigned)
 }
@@ -192,7 +202,7 @@ type Claims struct {
 	Nbf int64
 	Iat int64
 	Jti string
-	// Unknown holds all privately-defined claims and all publicly registered claims not inluded
+	// Unknown holds all privately-defined claims and all publicly registered claims not included
 	// as struct fields. If no such claims exist in the raw payload, Unknown will be nil.
 	Unknown map[string]jsontext.Value
 }
@@ -286,7 +296,7 @@ type JWSHeader struct {
 	Cty      string
 	Crit     []string `json:"crit,omitempty"`
 	// Unknown holds all privately-defined header parameters and all publicly registered
-	// header parameters not inluded as struct fields. If no such parameters exist in the
+	// header parameters not included as struct fields. If no such parameters exist in the
 	// raw header, Unknown will be nil.
 	Unknown map[string]jsontext.Value
 }
