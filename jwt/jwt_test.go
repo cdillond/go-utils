@@ -10,7 +10,7 @@ func TestDecode(t *testing.T) {
 
 	var j JWT
 
-	err := j.UnmarshalCompact([]byte(p))
+	err := j.UnmarshalCompact([]byte(p), nil, false)
 	if err != nil {
 		t.Error(err, j)
 	}
