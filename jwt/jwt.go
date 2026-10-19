@@ -17,17 +17,17 @@ import (
 	"math/big"
 )
 
-// CompactSerialization represents a JWT in its compact serialization form. It is mostly used as an intermediate object
-// for deserialising from raw JWT bytes to a JWT struct. Currently, this package only supports JWTs that can
+// CompactSerialization represents a [JWT] in its compact serialization form. It is mostly used as an intermediate object
+// for deserialising from raw bytes to a [JWT] struct. Currently, this package only supports JWTs that can
 // be encoded in the CompactSerialization form.
 type CompactSerialization struct {
-	// [Header] contains the JSON representation of a JWT header.
+	// Header contains the JSON representation of a JWT header.
 	Header []byte
-	// [Payload] contains the JSON representation of a JWT payload.
+	// Payload contains the JSON representation of a JWT payload.
 	Payload []byte
-	// [Signature] contains the signature the corresponds to the [RawMessage].
+	// Signature contains the signature the corresponds to the [RawMessage].
 	Signature []byte
-	// [RawMessage] contains the base-64-encoded, period-delimited concatenation of the [Header] and [Payload].
+	// RawMessage contains the base-64-encoded, period-delimited concatenation of the [Header] and [Payload].
 	RawMessage []byte
 }
 
@@ -167,27 +167,37 @@ const (
 	ErrDuplicateField DecodeError = "JWT contains duplicate fields"
 )
 
-// A LookupFn should resolve a JWT to an associated PubKey that can be used for signature validation. If no key
+// A LookupFn should resolve a [JWT] to an associated [PubKey] that can be used for signature validation. If no key
 // is found, it should return nil.
 type LookupFn func(JWT) PubKey
 
+// UnmarshalCompact interprets b as a [JWT] in compact serialization form. It sets j to the deserialized value
+// and validates the message/signature pair, returning a non-nil error if the decoding fails or the signature
+// is invalid.
 func (j *JWT) UnmarshalCompact(b []byte, lookup LookupFn, allowUnsigned bool) error {
 	var (
 		c   CompactSerialization
 		err error
+		key PubKey
 	)
 	if err = c.UnmarshalCompact(b); err != nil {
 		return err
 	}
-	return j.FromCompact(c, lookup, allowUnsigned)
+
+	if err = j.FromCompactSerialization(c); err != nil {
+		return err
+	}
+
+	if lookup != nil {
+		key = lookup(*j)
+	}
+
+	return ValidateSignature(key, j.Header.Alg, c.RawMessage, c.Signature, allowUnsigned)
 }
 
-// FromCompact decodes a CompactSerialization to a JWT and validates the message/signature pair.
-func (j *JWT) FromCompact(c CompactSerialization, lookup LookupFn, allowUnsigned bool) error {
-	var (
-		err error
-		key PubKey
-	)
+// FromCompactSerialization decodes a [CompactSerialization] to a [JWT] but does not validate the message/signature pair.
+func (j *JWT) FromCompactSerialization(c CompactSerialization) error {
+	var err error
 
 	if err = j.Header.UnmarshalJSONFrom(jsontext.NewDecoder(bytes.NewBuffer(c.Header))); err != nil {
 		return errors.Join(ErrInvalidHeader, err)
@@ -196,11 +206,7 @@ func (j *JWT) FromCompact(c CompactSerialization, lookup LookupFn, allowUnsigned
 		return errors.Join(ErrInvalidPayload, err)
 	}
 
-	if lookup != nil {
-		key = lookup(*j)
-	}
-
-	return ValidateSignature(key, Alg(j.Header.Alg), c.RawMessage, c.Signature, allowUnsigned)
+	return nil
 }
 
 type Claims struct {
@@ -211,6 +217,12 @@ type Claims struct {
 	Nbf int64
 	Iat int64
 	Jti string
+	// Claims that may be present in an OIDC ID token that are not specified by the JWS RFC.
+	AuthTime int64
+	Nonce    string
+	Acr      string
+	Amr      []string
+	Azr      string
 	// Unknown holds all privately-defined claims and all publicly registered claims not included
 	// as struct fields. If no such claims exist in the raw payload, Unknown will be nil.
 	Unknown map[string]jsontext.Value
@@ -275,6 +287,16 @@ func (c *Claims) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 			x = &c.Iat
 		case "jti":
 			x = &c.Jti
+		case "auth_time":
+			x = &c.AuthTime
+		case "nonce":
+			x = &c.Nonce
+		case "acr":
+			x = &c.Acr
+		case "amr":
+			x = &c.Amr
+		case "azr":
+			x = &c.Azr
 		default:
 			if c.Unknown == nil {
 				c.Unknown = make(map[string]jsontext.Value)
