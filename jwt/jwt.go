@@ -17,42 +17,48 @@ import (
 	"math/big"
 )
 
+// CompactSerialization represents a JWT in its compact serialization form. It is mostly used as an intermediate object
+// for deserialising from raw JWT bytes to a JWT struct. Currently, this package only supports JWTs that can
+// be encoded in the CompactSerialization form.
 type CompactSerialization struct {
-	Header     []byte
-	Payload    []byte
-	Signature  []byte
+	// [Header] contains the JSON representation of a JWT header.
+	Header []byte
+	// [Payload] contains the JSON representation of a JWT payload.
+	Payload []byte
+	// [Signature] contains the signature the corresponds to the [RawMessage].
+	Signature []byte
+	// [RawMessage] contains the base-64-encoded, period-delimited concatenation of the [Header] and [Payload].
 	RawMessage []byte
 }
 
-func DecodeCompact(b []byte) (CompactSerialization, error) {
+func (c *CompactSerialization) UnmarshalCompact(b []byte) error {
 	var (
-		c     CompactSerialization
 		err   error
 		parts = bytes.Split(b, []byte{'.'})
 	)
 
 	if len(parts) < 2 {
-		return c, ErrTooFewParts
+		return ErrTooFewParts
 	}
 	c.Header, err = base64.RawURLEncoding.AppendDecode(c.Header, parts[0])
 	if err != nil {
-		return c, errors.Join(ErrInvalidHeader, err)
+		return errors.Join(ErrInvalidHeader, err)
 	}
 	c.Payload, err = base64.RawURLEncoding.AppendDecode(c.Payload, parts[1])
 	if err != nil {
-		return c, errors.Join(ErrInvalidPayload, err)
+		return errors.Join(ErrInvalidPayload, err)
 	}
 	if len(parts) < 3 {
-		return c, nil
+		return nil
 	}
 	c.Signature, err = base64.RawURLEncoding.AppendDecode(c.Payload, parts[1])
 	if err != nil {
-		return c, errors.Join(ErrInvalidSig, err)
+		return errors.Join(ErrInvalidSig, err)
 	}
 
 	c.RawMessage = b[:len(b)-len(parts[2])-1]
 
-	return c, nil
+	return nil
 }
 
 type JWT struct {
@@ -166,8 +172,11 @@ const (
 type LookupFn func(JWT) PubKey
 
 func (j *JWT) UnmarshalCompact(b []byte, lookup LookupFn, allowUnsigned bool) error {
-	c, err := DecodeCompact(b)
-	if err != nil {
+	var (
+		c   CompactSerialization
+		err error
+	)
+	if err = c.UnmarshalCompact(b); err != nil {
 		return err
 	}
 	return j.FromCompact(c, lookup, allowUnsigned)
