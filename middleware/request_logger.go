@@ -3,6 +3,7 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"uuid"
 )
 
 type RequestLogger struct {
@@ -10,6 +11,7 @@ type RequestLogger struct {
 	AttrsFn func(r *http.Request) []slog.Attr
 }
 
+// Returns a new logger with the default AttrsFn.
 func NewRequestLogger(l *slog.Logger) RequestLogger {
 	return RequestLogger{
 		Logger:  *l,
@@ -19,6 +21,7 @@ func NewRequestLogger(l *slog.Logger) RequestLogger {
 
 func DefaultAttrs(r *http.Request) []slog.Attr {
 	return []slog.Attr{
+		slog.String("id", uuid.NewV4().String()),
 		slog.String("host", r.Host),
 		slog.String("path", r.URL.Path),
 		slog.String("method", r.Method),
