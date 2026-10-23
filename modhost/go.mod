@@ -1,4 +1,4 @@
-module go.ciaran.lol/pkghost
+module go.ciaran.lol/modhost
 
 go 1.27.3
 

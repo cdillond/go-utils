@@ -245,7 +245,6 @@ func methodNotAllowed(w http.ResponseWriter, r *http.Request) error {
 
 func main() {
 	var (
-		ok          bool
 		err         error
 		server      ProjectServer
 		watcher     *fsnotify.Watcher
@@ -254,12 +253,9 @@ func main() {
 		httpCh      = make(chan error)
 		addrHost    = env.GetEnv("ADDR_HOST", "")
 		addrPort    = env.GetEnv("ADDR_PORT", "8080")
-		hostName    = env.GetEnv("HOST_NAME", "go.ciaran.lol")
-		path        = env.GetEnv("PROJECTS_PATH", "/etc/go-pkg-host")
+		path        = env.GetEnv("PROJECTS_PATH", "/etc/go-mod-host")
 		logger      = middleware.NewRequestLogger(slog.Default())
 	)
-
-	_ = ok
 
 	defer cancel()
 
@@ -292,8 +288,8 @@ func main() {
 	go func() {
 		var mux http.ServeMux
 
-		mux.Handle(fmt.Sprintf("%s/", hostName), logger.LogRequest(middleware.ResponderFunc(methodNotAllowed)))
-		mux.Handle(fmt.Sprintf("GET %s/{name...}", hostName), logger.LogRequest(&server))
+		mux.Handle("/", logger.LogRequest(middleware.ResponderFunc(methodNotAllowed)))
+		mux.Handle("GET /{name...}", logger.LogRequest(&server))
 
 		httpCh <- http.ListenAndServe(net.JoinHostPort(addrHost, addrPort), &mux)
 	}()
@@ -303,7 +299,7 @@ func main() {
 		logger.ErrorContext(ctx, "context canceled", "err", ctx.Err())
 	case err = <-httpCh:
 		logger.ErrorContext(ctx, "http server error", "err", err)
-	case err, ok = <-watchCh:
+	case err, _ = <-watchCh:
 		if err != nil {
 			logger.ErrorContext(ctx, "fsnotify error", "err", err)
 		} else {
