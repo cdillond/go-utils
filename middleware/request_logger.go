@@ -8,25 +8,26 @@ import (
 
 type RequestLogger struct {
 	slog.Logger
-	AttrsFn func(r *http.Request) []slog.Attr
+	GroupFn func(r *http.Request) slog.Attr
 }
 
-// Returns a new logger with the default AttrsFn.
+// Returns a new logger with the [DefaultRequestGroup] as the GroupFn.
 func NewRequestLogger(l *slog.Logger) RequestLogger {
 	return RequestLogger{
 		Logger:  *l,
-		AttrsFn: DefaultAttrs,
+		GroupFn: DefaultRequestGroup,
 	}
 }
 
-func DefaultAttrs(r *http.Request) []slog.Attr {
-	return []slog.Attr{
+func DefaultRequestGroup(r *http.Request) slog.Attr {
+	return slog.GroupAttrs("request",
 		slog.String("id", uuid.NewV4().String()),
 		slog.String("host", r.Host),
 		slog.String("path", r.URL.Path),
 		slog.String("method", r.Method),
 		slog.String("addr", r.RemoteAddr),
-	}
+		slog.String("forwarded_for", r.Header.Get("X-Forwarded-For")),
+	)
 }
 
 func (l *RequestLogger) LogRequest(next Responder) http.HandlerFunc {
@@ -35,13 +36,11 @@ func (l *RequestLogger) LogRequest(next Responder) http.HandlerFunc {
 
 		logger := &l.Logger
 
-		if l.AttrsFn != nil {
-			for _, attr := range l.AttrsFn(r) {
-				logger = logger.With(attr)
-			}
+		if l.GroupFn != nil {
+			logger = logger.With(l.GroupFn(r))
 		}
 
-		logger.Log(ctx, slog.LevelInfo, "request")
+		logger.Log(ctx, slog.LevelInfo, "received")
 
 		sw := StatusResponseWriter{ResponseWriter: w}
 
