@@ -242,7 +242,14 @@ func (s *ProjectServer) Respond(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if proj.redirect != "" && r.URL.Query().Get("go-get") != "1" {
-		http.Redirect(w, r, proj.redirect, http.StatusTemporaryRedirect)
+		// we want to avoid redirect cycles and invalid urls.
+		u, err := url.Parse(proj.redirect)
+		if err == nil {
+			if !(u.Host == r.Host && u.Path == r.URL.Path) {
+				http.Redirect(w, r, proj.redirect, http.StatusTemporaryRedirect)
+				return nil
+			}
+		}
 	}
 
 	_, err := w.Write(proj.b)
