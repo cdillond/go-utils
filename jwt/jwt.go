@@ -25,9 +25,9 @@ type CompactSerialization struct {
 	Header []byte
 	// Payload contains the JSON representation of a JWT payload.
 	Payload []byte
-	// Signature contains the signature the corresponds to the [RawMessage].
+	// Signature contains the signature the corresponds to the RawMessage.
 	Signature []byte
-	// RawMessage contains the base-64-encoded, period-delimited concatenation of the [Header] and [Payload].
+	// RawMessage contains the base-64-encoded, period-delimited concatenation of the Header and Payload.
 	RawMessage []byte
 }
 
