@@ -269,9 +269,9 @@ func main() {
 		ctx, cancel = context.WithCancel(context.Background())
 		watchCh     = make(chan error)
 		httpCh      = make(chan error)
-		addrHost    = env.GetEnv("ADDR_HOST", "")
-		addrPort    = env.GetEnv("ADDR_PORT", "8080")
-		path        = env.GetEnv("PROJECTS_PATH", "/etc/go-mod-host")
+		addrHost    = env.Get("ADDR_HOST", "")
+		addrPort    = env.Get("ADDR_PORT", "8080")
+		path        = env.Get("PROJECTS_PATH", "/etc/go-mod-host")
 		logger      = middleware.NewRequestLogger(slog.Default())
 	)
 

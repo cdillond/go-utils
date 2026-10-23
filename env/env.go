@@ -20,14 +20,14 @@ const (
 	ErrCredentialFile   SystemdCredentialError = "unable to read credential file"
 )
 
-func GetEnv(key, fallback string) string {
+func Get(key, fallback string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
 	}
 	return fallback
 }
 
-func GetEnvInt(key string, fallback int) int {
+func GetInt(key string, fallback int) int {
 	if val, ok := os.LookupEnv(key); ok {
 		if out, err := strconv.Atoi(val); err == nil {
 			return out
@@ -36,7 +36,7 @@ func GetEnvInt(key string, fallback int) int {
 	return fallback
 }
 
-func GetEnvBool(key string, fallback bool) bool {
+func GetBool(key string, fallback bool) bool {
 	if val, ok := os.LookupEnv(key); ok {
 		if out, err := strconv.ParseBool(val); err == nil {
 			return out
