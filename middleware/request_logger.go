@@ -39,7 +39,6 @@ func (l *RequestLogger) LogRequest(next Responder) http.HandlerFunc {
 		}
 
 		logger.Log(ctx, slog.LevelInfo, "request")
-		logger.Log(ctx, slog.LevelInfo, "test", "name", r.PathValue("name"))
 
 		sw := StatusResponseWriter{ResponseWriter: w}
 

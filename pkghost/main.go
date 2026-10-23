@@ -290,8 +290,8 @@ func main() {
 	go func() {
 		var mux http.ServeMux
 
-		mux.Handle(fmt.Sprintf("%s/{name...}", hostName), logger.LogRequest(middleware.ResponderFunc(methodNotAllowed)))
-		mux.Handle(fmt.Sprintf("GET %s/", hostName), logger.LogRequest(&server))
+		mux.Handle(fmt.Sprintf("%s/", hostName), logger.LogRequest(middleware.ResponderFunc(methodNotAllowed)))
+		mux.Handle(fmt.Sprintf("GET %s/{name...}", hostName), logger.LogRequest(&server))
 
 		httpCh <- http.ListenAndServe(addr, &mux)
 	}()
