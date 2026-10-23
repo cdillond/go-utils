@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"net"
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
@@ -251,7 +252,8 @@ func main() {
 		ctx, cancel = context.WithCancel(context.Background())
 		watchCh     = make(chan error)
 		httpCh      = make(chan error)
-		addr        = env.GetEnv("ADDR", ":8080")
+		addrHost    = env.GetEnv("ADDR_HOST", "")
+		addrPort    = env.GetEnv("ADDR_PORT", "8080")
 		hostName    = env.GetEnv("HOST_NAME", "go.ciaran.lol")
 		path        = env.GetEnv("PROJECTS_PATH", "/etc/go-pkg-host")
 		logger      = middleware.NewRequestLogger(slog.Default())
@@ -293,7 +295,7 @@ func main() {
 		mux.Handle(fmt.Sprintf("%s/", hostName), logger.LogRequest(middleware.ResponderFunc(methodNotAllowed)))
 		mux.Handle(fmt.Sprintf("GET %s/{name...}", hostName), logger.LogRequest(&server))
 
-		httpCh <- http.ListenAndServe(addr, &mux)
+		httpCh <- http.ListenAndServe(net.JoinHostPort(addrHost, addrPort), &mux)
 	}()
 
 	select {
