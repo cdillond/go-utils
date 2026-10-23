@@ -1,4 +1,5 @@
-// Package env includes utility functions for accessing environment variables.
+// Package env includes convenience functions for accessing environment variables
+// and converting them to useable types.
 package env
 
 import (
