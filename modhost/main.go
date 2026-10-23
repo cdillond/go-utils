@@ -32,6 +32,8 @@ type Project struct {
 	Vcs          string `json:"vcs"`
 	RepoRoot     string `json:"repoRoot"`
 	SubDir       string `json:"subDir"`
+	// HumanRedirect optionally specifies a URL to redirect requests that do not include a "go-get=1" query parameter.
+	HumanRedirect string `json:"humanRedirect"`
 }
 
 func (p Project) Validate() error {
@@ -106,10 +108,15 @@ func (s *storeError) Error() string {
 	return "unable to store project"
 }
 
+type cacheVal struct {
+	redirect string
+	b        []byte
+}
+
 type PageCache struct {
 	rwm  sync.RWMutex
 	t    *template.Template
-	data map[string][]byte
+	data map[string]cacheVal
 }
 
 func (m *PageCache) store(path string) error {
@@ -121,7 +128,7 @@ func (m *PageCache) store(path string) error {
 		return err
 	}
 
-	m.data = make(map[string][]byte, len(projects))
+	m.data = make(map[string]cacheVal, len(projects))
 
 	var errs []error
 
@@ -135,7 +142,7 @@ func (m *PageCache) store(path string) error {
 			errs = append(errs, fmt.Errorf("unable to render project %s: %w", p.ImportPrefix, err))
 			continue
 		}
-		m.data[p.ImportPrefix] = buf.Bytes()
+		m.data[p.ImportPrefix] = cacheVal{p.HumanRedirect, buf.Bytes()}
 	}
 
 	if len(errs) == 0 {
@@ -151,7 +158,7 @@ func (m *PageCache) clear() {
 	clear(m.data)
 }
 
-func (m *PageCache) load(s string) ([]byte, bool) {
+func (m *PageCache) load(s string) (cacheVal, bool) {
 	m.rwm.RLock()
 	defer m.rwm.RUnlock()
 
@@ -234,7 +241,11 @@ func (s *ProjectServer) Respond(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 
-	_, err := w.Write(proj)
+	if proj.redirect != "" && r.URL.Query().Get("go-get") != "1" {
+		http.Redirect(w, r, proj.redirect, http.StatusTemporaryRedirect)
+	}
+
+	_, err := w.Write(proj.b)
 	return err
 }
 
