@@ -11,7 +11,7 @@ An example configuration file could look like this:
 ```json
 [
     {
-        "importPrefix": "go.ciaran.lol",
+        "importPrefix": "go.ciaran.lol/middleware",
         "vcs": "git",
         "repoRoot": "https://github.com/cdillond/go-utils",
         "subDir": "middleware",
