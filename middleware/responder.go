@@ -18,7 +18,7 @@ func (fn ResponderFunc) Respond(w http.ResponseWriter, r *http.Request) error {
 
 type recoverError string
 
-func (r recoverError) Error() string { return r }
+func (r recoverError) Error() string { return string(r) }
 
 const errRecovered recoverError = "recovered panic in http.Handler"
 
