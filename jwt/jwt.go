@@ -37,9 +37,13 @@ func (c *CompactSerialization) UnmarshalCompact(b []byte) error {
 		parts = bytes.Split(b, []byte{'.'})
 	)
 
-	if len(parts) < 2 {
+	switch {
+	case len(parts) < 2:
 		return ErrTooFewParts
+	case len(parts) > 3:
+		return ErrTooManyParts
 	}
+
 	c.Header, err = base64.RawURLEncoding.AppendDecode(c.Header, parts[0])
 	if err != nil {
 		return errors.Join(ErrInvalidHeader, err)
@@ -48,15 +52,17 @@ func (c *CompactSerialization) UnmarshalCompact(b []byte) error {
 	if err != nil {
 		return errors.Join(ErrInvalidPayload, err)
 	}
-	if len(parts) < 3 {
+
+	// RawMessage is the signing input: the encoded header and payload joined by a period.
+	c.RawMessage = b[:len(parts[0])+1+len(parts[1])]
+
+	if len(parts) == 2 {
 		return nil
 	}
-	c.Signature, err = base64.RawURLEncoding.AppendDecode(c.Payload, parts[1])
+	c.Signature, err = base64.RawURLEncoding.AppendDecode(c.Signature, parts[2])
 	if err != nil {
 		return errors.Join(ErrInvalidSig, err)
 	}
-
-	c.RawMessage = b[:len(b)-len(parts[2])-1]
 
 	return nil
 }
@@ -112,7 +118,8 @@ func ValidateSignature(key PubKey, alg Alg, message, signature []byte, allowUnsi
 			return ErrIncorrectAlg
 		}
 		mac := hmac.New(sha256.New, raw[:])
-		if !hmac.Equal(mac.Sum(message), signature) {
+		mac.Write(message)
+		if !hmac.Equal(mac.Sum(nil), signature) {
 			return ErrBadSig
 		}
 	case AlgRS256:
@@ -348,7 +355,7 @@ func (j *JWSHeader) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	}()
 
 	if t, err = dec.ReadToken(); err != nil {
-		return nil
+		return err
 	}
 
 	if t.Kind() != jsontext.KindBeginObject {
