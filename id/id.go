@@ -5,6 +5,21 @@ import (
 	"uuid"
 )
 
+// IsValidV4 returns true if u is a valid V4 UUID (variant 2).
+func IsValidV4(u uuid.UUID) bool {
+	// version 4
+	if u[6]>>4 != 4 {
+		return false
+	}
+
+	// variant 2
+	if u[8]>>6 != 2 {
+		return false
+	}
+
+	return true
+}
+
 // IsValidV4UUID returns true if the bytes contained by b constitute a valid
 // V4 UUID (variant 2), and false otherwise.
 func IsValidV4UUID(b []byte) bool {
